@@ -1,6 +1,6 @@
 name = "GasNetModel"
 uuid = "eb9d8b57-4276-4eb0-9868-7cd834d38f6e"
-authors = ["Laurent Pagnier ", "Criston Hyett <accounts@chrisrackauckas.com> and contributors"]
+authors = ["Laurent Pagnier ", "Criston Hyett", "and contributors"]
 version = "0.1.0"
 
 [deps]
