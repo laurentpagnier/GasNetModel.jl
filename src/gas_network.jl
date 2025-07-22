@@ -27,7 +27,7 @@ end
 function get_speed_of_sound(ginfo)
     γ = ginfo.params.specific_heat_capacity_ratio[1]
     T = ginfo.params.temperature[1]
-    Z = ginfo.params.courant_number[1]
+    Z = ginfo.params.compressibility_factor[1]
     R = 8.31446261815324 / 0.01604 # molar R / (methane) molar mass
     a = sqrt(γ * Z * R * T)
 end
@@ -84,13 +84,12 @@ end
 end
 
 
-function create_equations(sub, pipe, ginfo)
+function create_equations(sub, pipe, ginfo, dx)
     n_out = ginfo.pipes.start_node 
     n_in = ginfo.pipes.end_node
     diam = ginfo.pipes.diameter
     volumes = zeros(length(sub)) # volume of the node cell
     flows = Num.(zeros(length(sub))) # mass flow entering or exiting the cell
-    dx = ginfo.params.output_dx[1]
     eqs = Equation[]
     a = get_speed_of_sound(ginfo)
     βs = [p.friction_factor/ p.diameter/2 for p in eachrow(ginfo.pipes)]
@@ -119,6 +118,7 @@ end
     
     @structural_parameters begin
         ginfo
+        dx = 10_000
     end
     
     @components begin
@@ -130,7 +130,7 @@ end
                 ) for i=1:size(ginfo.nodes,1)] 
         pipe = [Pipe(
                     L = ginfo.pipes.length[i],
-                    dx = ginfo.params.output_dx[1],
+                    dx = dx,
                     β = ginfo.pipes.friction_factor[i]/ginfo.pipes.diameter[i]/2,
                     a = get_speed_of_sound(ginfo),
                     p_i = ginfo.pipes.initial_pipe_pressure_in[i],
@@ -142,6 +142,6 @@ end
     @equations begin
         # conservation of mass in the nodal cell
         # and flux at the boundary
-        create_equations(sub, pipe, ginfo)
+        create_equations(sub, pipe, ginfo, dx)
     end
 end
