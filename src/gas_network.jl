@@ -1,4 +1,4 @@
-export GasInfo, GasSystem, q_nodal
+export GasInfo, GasSystem
 
 struct GasInfo
     pipes::DataFrame
@@ -23,6 +23,21 @@ function GasInfo(folder="../data/")
     GasInfo(pipes, nodes, compressors, params)
 end
 
+function compute_linepack(ginfo, sys, sol, dx = 10_000)
+    # linepack is kg of natural gas
+    linepack = zeros(length(sol.t))
+    global temp, id = sol, sys # need to be global to be called in Meta parse
+    for (i, p) in enumerate(eachrow(ginfo.pipes))
+        id1 = p.start_node 
+        id2 = p.end_node 
+        eval(Meta.parse("dens = temp[[id.sub_$id1.ρ; id.pipe_$i.ρ; id.sub_$id2.ρ]]"))
+        section = pi * p.diameter^2 / 4
+        volume = section * dx
+        l = map(x-> x[1]/2 + sum(x[2:end-1]) + x[end]/2 , dens) * volume
+        linepack += l
+    end
+    linepack
+end
 
 function get_speed_of_sound(ginfo)
     γ = ginfo.params.specific_heat_capacity_ratio[1]
