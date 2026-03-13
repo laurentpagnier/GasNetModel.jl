@@ -3,7 +3,7 @@
 
 ## Description of the Environment
 
-This package relying on ModelingToolkit.jl allows to compute transient dynamics in a gas network.jl. It has been primarily built to serve as a dependency of GasPwrCoSim.jl co-simulation package but can be used a stand-alone package too.
+This package relying on [ModelingToolkit.jl](https://docs.sciml.ai/ModelingToolkit/stable/) allows to compute transient dynamics in a gas network. It has been primarily built to serve as a dependency of [GasPwrCoSim.jl](https://github.com/laurentpagnier/GasPwrCoSim.jl)  co-simulation package but can be used a stand-alone package too.
 
 Data must be loaded to a GasInfo structure, defined as
 ```
