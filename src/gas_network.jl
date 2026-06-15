@@ -1,4 +1,4 @@
-export GasInfo, GasSystem
+export GasInfo, GasSystem, q_nodal
 
 struct GasInfo
     pipes::DataFrame
@@ -23,6 +23,7 @@ function GasInfo(folder="../data/")
     GasInfo(pipes, nodes, compressors, params)
 end
 
+
 function compute_linepack(ginfo, sys, sol, dx = 10_000)
     # linepack is kg of natural gas
     linepack = zeros(length(sol.t))
@@ -38,6 +39,8 @@ function compute_linepack(ginfo, sys, sol, dx = 10_000)
     end
     linepack
 end
+
+
 
 function get_speed_of_sound(ginfo)
     γ = ginfo.params.specific_heat_capacity_ratio[1]
@@ -62,6 +65,7 @@ end
         ϕ0 = 1
         a = 450
         β = 0.001
+        grav = 10
     end
 
     @variables begin
@@ -71,7 +75,7 @@ end
     end
     
     @equations begin
-        [D(ϕ[i]) ~ -(a^2/dx)*(ρ[i] - ρ[i-1]) - 2β*(ϕ[i]  * abs(ϕ[i])) / (ρ[i] + ρ[i-1]) for i=2:N] ∪ # i=1 and i=N+1 are done later
+        [D(ϕ[i]) ~ -(a^2/dx)*(ρ[i] - ρ[i-1]) - 0.5*β*(ϕ[i]  * abs(ϕ[i]) / (ρ[i] + ρ[i-1]) + (ρ[i] + ρ[i-1])*0.5*grav) for i=2:N] ∪ # i=1 and i=N+1 are done later
         [D(ρ[i]) ~ -(1 / dx) * (ϕ[i+1] - ϕ[i]) for i=1:N]
     end
 end
@@ -107,21 +111,22 @@ function create_equations(sub, pipe, ginfo, dx)
     flows = Num.(zeros(length(sub))) # mass flow entering or exiting the cell
     eqs = Equation[]
     a = get_speed_of_sound(ginfo)
-    βs = [p.friction_factor/ p.diameter/2 for p in eachrow(ginfo.pipes)]
-    Ss  = [pi*p.diameter^2/4 for p in eachrow(ginfo.pipes)]
+    βs = [p.friction_factor / p.diameter/ 2 for p in eachrow(ginfo.pipes)]
+    Ss  = [pi * p.diameter^2 / 4 for p in eachrow(ginfo.pipes)]
+    grav = [9.81 * (p.end_height - p.start_height) /p.length for p in eachrow(ginfo.pipes)]
     # compute the time-derivative of first and last pipe fluxes using nodal densities
     # and define quantities for the mass conservation eq
-    for (k, (n_i, n_o, d, β, S)) in enumerate(zip(n_in, n_out, diam, βs, Ss))
+    for (k, (n_i, n_o, d, β, S, g)) in enumerate(zip(n_in, n_out, diam, βs, Ss, grav))
         volumes[n_o] += S * dx/2 
         flows[n_o] = flows[n_o] - S*pipe[k].ϕ[1]
         ϕ, ρ, ρn = pipe[k].ϕ[1], pipe[k].ρ[1], sub[n_o].ρ 
-        eq = D(ϕ) ~ -(a^2/dx)*(ρ  - ρn) - 2β*(ϕ  * abs(ϕ)) / (ρ + ρn) 
+        eq = D(ϕ) ~ -(a^2/dx)*(ρ  - ρn) - 2β*(ϕ  * abs(ϕ)) / (ρ + ρn) + g*(ρ + ρn)/2
         push!(eqs, eq)
         
         volumes[n_i] += S * dx/2 
         flows[n_i] = flows[n_i] + S*pipe[k].ϕ[end]
         ϕ, ρ, ρn = pipe[k].ϕ[end], pipe[k].ρ[end], sub[n_i].ρ 
-        eq = D(ϕ) ~ -(a^2/dx)*(ρn - ρ) - 2β*(ϕ  * abs(ϕ)) / (ρ + ρn) 
+        eq = D(ϕ) ~ -(a^2/dx)*(ρn - ρ) - 2β*(ϕ  * abs(ϕ)) / (ρ + ρn) + g*(ρ + ρn)/2
         push!(eqs, eq)
     end
     # mass conservation at the node cell
@@ -148,15 +153,16 @@ end
                     dx = dx,
                     β = ginfo.pipes.friction_factor[i]/ginfo.pipes.diameter[i]/2,
                     a = get_speed_of_sound(ginfo),
+                    grav = 9.81 * (ginfo.pipes.end_height[i] - ginfo.pipes.start_height[i]) / ginfo.pipes.length[i], # g*sin(theta)
                     p_i = ginfo.pipes.initial_pipe_pressure_in[i],
                     p_o = ginfo.pipes.initial_pipe_pressure_out[i],
-                    ϕ0 = 4*ginfo.pipes.initial_pipe_flow[i] / ginfo.pipes.diameter[i]^2 / pi ,
+                    ϕ0 = 4 * ginfo.pipes.initial_pipe_flow[i] / ginfo.pipes.diameter[i]^2 / pi ,
                 ) for  i=1:size(ginfo.pipes,1)]
     end
 
     @equations begin
         # conservation of mass in the nodal cell
-        # and flux at the boundary
+        # and flux at the boundary  
         create_equations(sub, pipe, ginfo, dx)
     end
 end
