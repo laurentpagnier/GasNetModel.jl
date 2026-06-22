@@ -14,10 +14,10 @@ function GasInfo(folder="../data/")
     nodes = DataFrame(CSV.File(joinpath(folder, "network_data/nodes.csv"), skipto=3, header=2))
     compressors = DataFrame(CSV.File(joinpath(folder, "network_data/compressors.csv"), skipto=3, header=2))
     node_ic = DataFrame(CSV.File(joinpath(folder, "initial_conditions/node_ic.csv"), skipto=3, header=2))
-    pipe_ic = DataFrame(CSV.File(joinpath(folder, "initial_conditions/pipe_ic.csv"), skipto=3, header=2))
-    comp_ic = DataFrame(CSV.File(joinpath(folder, "initial_conditions/compressor_ic.csv"), skipto=3, header=2))
+    #pipe_ic = DataFrame(CSV.File(joinpath(folder, "initial_conditions/pipe_ic.csv"), skipto=3, header=2))
+    #comp_ic = DataFrame(CSV.File(joinpath(folder, "initial_conditions/compressor_ic.csv"), skipto=3, header=2))
     nodes = leftjoin(nodes, node_ic, on = :number)
-    pipes = leftjoin(pipes, pipe_ic, on = :number)
+    #pipes = leftjoin(pipes, pipe_ic, on = :number)
     # TODO compressors are not yet implemented
     #compressors = leftjoin(compressors, comp_ic, on = :number)
     GasInfo(pipes, nodes, compressors, params)
@@ -57,10 +57,10 @@ end
 
     @structural_parameters begin
         L = 1
-        dx = 1
+        dx = 1000
         N = ceil(Int, L/dx)
-        p_o = 1
-        p_i = 1
+        p_o = 75E5
+        p_i = 75E5
         ϕ0 = 1
         a = 450
         β = 0.001
@@ -74,7 +74,7 @@ end
     end
     
     @equations begin
-        [D(ϕ[i]) ~ -(a^2/dx)*(ρ[i] - ρ[i-1]) - 0.5*β*(ϕ[i]  * abs(ϕ[i]) / (ρ[i] + ρ[i-1]) - (ρ[i] + ρ[i-1])*0.5*grav) for i=2:N] ∪ # i=1 and i=N+1 are done later
+        [D(ϕ[i]) ~ -(a^2/dx)*(ρ[i] - ρ[i-1]) - 2*β*(ϕ[i]  * abs(ϕ[i])) / (ρ[i] + ρ[i-1]) - 0.5*(ρ[i] + ρ[i-1])*grav for i=2:N] ∪ # i=1 and i=N+1 are done later
         [D(ρ[i]) ~ -(1 / dx) * (ϕ[i+1] - ϕ[i]) for i=1:N]
     end
 end
@@ -119,13 +119,13 @@ function create_equations(sub, pipe, ginfo, dx, grav)
         volumes[n_o] += S * dx/2 
         flows[n_o] = flows[n_o] - S*pipe[k].ϕ[1]
         ϕ, ρ, ρn = pipe[k].ϕ[1], pipe[k].ρ[1], sub[n_o].ρ 
-        eq = D(ϕ) ~ -(a^2/dx)*(ρ  - ρn) - 2β*(ϕ  * abs(ϕ)) / (ρ + ρn) - g*(ρ + ρn)/2
+        eq = D(ϕ) ~ -a^2/dx * (ρ  - ρn) - 2*β*(ϕ  * abs(ϕ)) / (ρ + ρn) - 0.5*g*(ρ + ρn)
         push!(eqs, eq)
         
         volumes[n_i] += S * dx/2 
         flows[n_i] = flows[n_i] + S*pipe[k].ϕ[end]
         ϕ, ρ, ρn = pipe[k].ϕ[end], pipe[k].ρ[end], sub[n_i].ρ 
-        eq = D(ϕ) ~ -(a^2/dx)*(ρn - ρ) - 2β*(ϕ  * abs(ϕ)) / (ρ + ρn) - g*(ρ + ρn)/2
+        eq = D(ϕ) ~ -a^2/dx * (ρn - ρ) - 2*β*(ϕ  * abs(ϕ)) / (ρ + ρn) - 0.5*g*(ρ + ρn)
         push!(eqs, eq)
     end
     # mass conservation at the node cell
@@ -139,6 +139,8 @@ end
         ginfo
         grav = 9.81 * (ginfo.nodes.height[ginfo.pipes.end_node] - ginfo.nodes.height[ginfo.pipes.start_node]) ./ ginfo.pipes.length
         dx = 10_000
+        p_i = ginfo.nodes.initial_nodal_pressure[ginfo.pipes.start_node]
+        p_o = ginfo.nodes.initial_nodal_pressure[ginfo.pipes.end_node]
     end
     
     @components begin
@@ -154,9 +156,9 @@ end
                     β = ginfo.pipes.friction_factor[i]/ginfo.pipes.diameter[i]/2,
                     a = get_speed_of_sound(ginfo),
                     grav = grav[i], # g*sin(theta)
-                    p_i = ginfo.pipes.initial_pipe_pressure_in[i],
-                    p_o = ginfo.pipes.initial_pipe_pressure_out[i],
-                    ϕ0 = 4 * ginfo.pipes.initial_pipe_flow[i] / ginfo.pipes.diameter[i]^2 / pi ,
+                    p_i = p_i[i],
+                    p_o = p_o[i],
+                    ϕ0 = 4 * p_i[i] / ginfo.pipes.diameter[i]^2 / pi ,
                 ) for  i=1:size(ginfo.pipes,1)]
     end
 
