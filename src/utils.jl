@@ -62,5 +62,5 @@ function parse_json(fn)
     =#
     
     params = DataFrame( Dict( k => temp["params"][k] for k in keys(temp["params"])) )
-    GasInfo(pipes, nodes, compressors, params)
+    GasInfo(sort!(pipes, :number), sort!(nodes, :number), compressors, params)
 end

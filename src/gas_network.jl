@@ -50,7 +50,7 @@ end
 
 function make_substation(name; q0 = 0, p = 75E5, a = 450, i = 1)
     @variables ρ(t) = p / a^2
-    @parameters i = i
+    @parameters i=i
     #eqs = q ~ q_nodal(i,t)
     System(Equation[], t, [ρ], [i]; name)
 end
