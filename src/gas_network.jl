@@ -1,5 +1,9 @@
 export GasInfo, GasSystem, q_nodal, create_gas_sys
 
+const _q_nodal = Ref{Function}((i,t) -> 0.0)   # default/placeholder behavior
+
+q_nodal(i,t) = _q_nodal[](i,t)
+
 @register_symbolic q_nodal(i,t)
 
 struct GasInfo
