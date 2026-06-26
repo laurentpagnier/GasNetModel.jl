@@ -13,14 +13,13 @@ end
 function compute_linepack(ginfo, sys, sol, dx = 10_000)
     # linepack is kg of natural gas
     linepack = zeros(length(sol.t))
-    global temp, id = sol, sys # need to be global to be called in Meta parse
     for (i, p) in enumerate(eachrow(ginfo.pipes))
-        id1 = p.start_node 
-        id2 = p.end_node 
-        eval(Meta.parse("dens = temp[[id.sub_$id1.ρ; id.pipe_$i.ρ; id.sub_$id2.ρ]]"))
+        n_out = p.start_node 
+        n_in = p.end_node 
+        ρs = sol[[getproperty(sys,Symbol(:sub_, n_out)).ρ; getproperty(sys,Symbol(:pipe_, i)).ρ; getproperty(sys,Symbol(:sub_, n_in)).ρ]]
         section = pi * p.diameter^2 / 4
         volume = section * dx
-        l = map(x-> x[1]/2 + sum(x[2:end-1]) + x[end]/2 , dens) * volume
+        l = map(x-> x[1]/2 + sum(x[2:end-1]) + x[end]/2 , ρs) * volume
         linepack += l
     end
     linepack
